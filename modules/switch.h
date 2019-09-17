@@ -4,10 +4,10 @@
 class Switch{
 	public:
 	
-	Switch();
+	Switch(int,int);
 	
-	void RS_OFF(int);
-	void RS_ON(int);
+	void off();
+	void on();
 };
 
 #endif

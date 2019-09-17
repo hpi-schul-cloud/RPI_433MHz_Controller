@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
-#include <filesystem>
 #include <string>
 #include <cstring>
 #include <time.h>
@@ -11,6 +10,7 @@
 
 #include "loguru/loguru.cpp"
 #include "modules/switch.h"
+#include "modules/api_listener.h"
 #include <string>
 
 using namespace std;
@@ -42,7 +42,7 @@ bool checkConfig(){
         LOG_F(ERROR,"Config file is missing data or wrongly configured!");
         return false;
     } 
-    cout << "[\033[1;32mOK\033[0m] config file loaded\n";
+    LOG_F(INFO,"config file loaded");
     return true;
 }
 
@@ -80,16 +80,13 @@ void loadConfig(){
                         case str2int("DEBUG"):
                             DEBUG = (readConfigLine(line) == "true");
                             break;
-                        case str2int("DEBUG"):
-                            DEBUG = (readConfigLine(line).compare("true"));
-                            break;
                     }
                 }
             }
         }
         checkConfig();
     }else{
-        cout << "[\033[1;31mERR\033[0m] config file not found!\n";
+        LOG_F(ERROR,"config file not found!");
     }
 }
 
@@ -150,7 +147,7 @@ int main(int argc, char *argv[]) {
                 break;
         }
 
-        //clear log very day at 10
+        //clear log very day at 12
         if(!deleted && now->tm_hour == 12){
             system("exec rm -r log/*");
             string file = "log/" + to_string(now->tm_mday) + to_string(now->tm_mon + 1) + to_string(now->tm_year + 1900) + ".log";

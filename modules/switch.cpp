@@ -3,18 +3,24 @@
 
 RCSwitch mySwitch;
 
-Switch::Switch(){
-	int PIN = 0; 
-	wiringPiSetup();
+int cs_on;
+int cs_off;
+
+Switch::Switch(int _cs_on, int _cs_off){
+    cs_on = _cs_on;
+    cs_off = _cs_off;
+    
+    int PIN = 0; 
+    wiringPiSetup();
 
     mySwitch = RCSwitch();
     mySwitch.enableTransmit(PIN);
 }
 
-void Switch::RS_ON(int CS_ON){
-    mySwitch.send(CS_ON, 24);
+void Switch::on(){
+    mySwitch.send(cs_on, 24);
 }
 
-void Switch::RS_OFF(int CS_OFF){
-    mySwitch.send(CS_OFF, 24);
+void Switch::off(){
+    mySwitch.send(cs_off, 24);
 }
