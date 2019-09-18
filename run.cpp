@@ -26,6 +26,7 @@ int config_csOn, config_csOff;
 string config_apiUrl = "";
 string config_apiUserpw = "";
 int config_apiUpdateNoAlarm, config_apiUpdateAlarm, config_apiAuth;
+int config_apiStart, config_apiStop;
 
 constexpr unsigned int str2int(const char* str, int h = 0){
     return !str[h] ? 5381 : (str2int(str, h+1) * 33) ^ str[h];
@@ -77,6 +78,12 @@ void loadConfig(){
                         case str2int("API_AUTH"):
                             config_apiAuth = stoi(readConfigLine(line));
                             break;
+                        case str2int("API_START"):
+                            config_apiStart = stoi(readConfigLine(line));
+                            break;
+                        case str2int("API_STOP"):
+                            config_apiStop = stoi(readConfigLine(line));
+                            break;
                         case str2int("DEBUG"):
                             DEBUG = (readConfigLine(line) == "true");
                             break;
@@ -119,44 +126,53 @@ int main(int argc, char *argv[]) {
     while(true){
         t = time(0);
         tm* now = localtime(&t);
-        
-        int s;
-        if(nextAuth <= t){
-            s = api.getFirealarm(true);
-            nextAuth = t + config_apiAuth;
-        }else{
-            s = api.getFirealarm(false);
-        }
-        
-        switch(s){
-            case 1:
-                LOG_F(WARNING, "New firealarm");
-                rcs.on(); 
-                wait = config_apiUpdateAlarm;
-                break;
-            case 0:
-                LOG_F(INFO, "No firealarm");
-                rcs.off();
-                wait = config_apiUpdateNoAlarm;
-                break;
-            case -1:
-                LOG_F(ERROR, "API Request failed. Please check api url and make sure internet connection is available.");
-                wait = 10;
-                break;
-            default:
-                break;
-        }
 
-        //clear log very day at 12
-        if(!deleted && now->tm_hour == 12){
-            system("exec rm -r log/*");
-            string file = "log/" + to_string(now->tm_mday) + to_string(now->tm_mon + 1) + to_string(now->tm_year + 1900) + ".log";
-            loguru::add_file(file.c_str(), loguru::Append, loguru::Verbosity_MAX);
-            LOG_F(WARNING, "Old logs have been removed");
-            deleted = true;
-        }
-        if(now ->tm_hour > 12 && deleted){
-            deleted = false;
+        //track firealarm in operating hours and on working days (Mo-Fr) only
+        if((now->tm_hour >= config_apiStart && now->tm_hour < config_apiStop) && (now->tm_wday >= 1 && now->tm_wday < 6)){
+
+            int s;
+            if(nextAuth <= t){
+                s = api.getFirealarm(true);
+                nextAuth = t + config_apiAuth;
+            }else{
+                s = api.getFirealarm(false);
+            }
+        
+            switch(s){
+                case 1:
+                    LOG_F(WARNING, "New firealarm");
+                    rcs.on(); 
+                    wait = config_apiUpdateAlarm;
+                    break;
+                case 0:
+                    LOG_F(INFO, "No firealarm");
+                    rcs.off();
+                    wait = config_apiUpdateNoAlarm;
+                    break;
+                case -1:
+                    LOG_F(ERROR, "API Request failed. Please check api url and make sure internet connection is available.");
+                    wait = 10;
+                    break;
+                default:
+                    break;
+            }
+
+            //clear log at 12 
+            if(!deleted && now->tm_hour == 12){
+                system("exec rm -r log/*");
+                string file = "log/" + to_string(now->tm_mday) + to_string(now->tm_mon + 1) + to_string(now->tm_year + 1900) + ".log";
+                loguru::add_file(file.c_str(), loguru::Append, loguru::Verbosity_MAX);
+                LOG_F(WARNING, "Old logs have been removed");
+                deleted = true;
+            }
+            if(now ->tm_hour > 12 && deleted){
+                deleted = false;
+            }
+
+        }else{
+            LOG_F(INFO, "Outside operating hours; no firealarm tracking!");
+            wait = 300;
+            rcs.off();
         }
         
         sleep(wait);
