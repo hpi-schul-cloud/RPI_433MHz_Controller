@@ -21,6 +21,8 @@ int wait = 30;
 time_t nextAuth;
 bool deleted = true;
 
+int retries;
+
 //Config
 int config_csOn, config_csOff;
 string config_apiUrl = "";
@@ -33,7 +35,7 @@ constexpr unsigned int str2int(const char* str, int h = 0){
 }
 
 string readConfigLine(string str){
-    unsigned first = str.find('"');
+    unsigned first = str.find('=');
     return str.substr(first+1, str.length()-1);
 }
 
@@ -42,7 +44,10 @@ bool checkConfig(){
         config_apiUpdateAlarm == 0 || config_apiUpdateNoAlarm == 0 || config_apiAuth == 0){
         LOG_F(ERROR,"Config file is missing data or wrongly configured!");
         return false;
-    } 
+
+   }
+	cout << config_apiUrl;
+    //LOG_F(INFO,config_apiUrl);
     LOG_F(INFO,"config file loaded");
     return true;
 }
@@ -55,7 +60,7 @@ void loadConfig(){
                 if(line.at(0) != '#'){ //skip comments in config
                     char cstr[line.size()+1];
                     strcpy(cstr, line.c_str());
-                    switch(str2int(strtok(cstr, ":")))
+                    switch(str2int(strtok(cstr, "=")))
                     {
                         case str2int("CS_ON"):
                             config_csOn = stoi(readConfigLine(line));
@@ -99,29 +104,30 @@ void loadConfig(){
 
 int main(int argc, char *argv[]) {
     system("exec rm -r log/*"); //clear log
-    
+
     time_t t = time(0);
     tm* now = localtime(&t);
-    
+
     nextAuth = t + config_apiAuth;
-        
+
     //start logging
     loguru::init(argc, argv);
     string file = "log/" + to_string(now->tm_mday) + to_string(now->tm_mon + 1) + to_string(now->tm_year + 1900) + ".log";
     loguru::add_file(file.c_str(), loguru::Append, loguru::Verbosity_MAX);
-    
+
     //load config
     loadConfig();
-        
+
     //init switch and api
     Switch rcs = Switch(config_csOn,config_csOff);
     API_Listener api = API_Listener(config_apiUrl.c_str(), DEBUG, config_apiUserpw.c_str());
     config_apiUserpw = "";
-        
+
     if(DEBUG){
-        cout << config_csOn << ", " << config_csOff << ", " << config_apiUrl << ", " << config_apiUpdateAlarm << ", " << config_apiUpdateNoAlarm <<'\n';
+	cout << "----------------------------------------\n"; 
+        cout << config_csOn << ", " << config_csOff << ", " << config_apiUrl << ", " << config_apiUpdateAlarm << ", " << config_apiUpdateNoAlarm << ", " << config_apiStop << '\n';
     }
-    
+
     //endless loop
     while(true){
         t = time(0);
@@ -137,36 +143,30 @@ int main(int argc, char *argv[]) {
             }else{
                 s = api.getFirealarm(false);
             }
-        
+
             switch(s){
                 case 1:
                     LOG_F(WARNING, "New firealarm");
-                    rcs.on(); 
+                    rcs.on();
                     wait = config_apiUpdateAlarm;
+		    retries = 0;
                     break;
                 case 0:
                     LOG_F(INFO, "No firealarm");
                     rcs.off();
                     wait = config_apiUpdateNoAlarm;
+		    retries = 0;
                     break;
                 case -1:
                     LOG_F(ERROR, "API Request failed. Please check api url and make sure internet connection is available.");
-                    wait = 10;
+                    wait = (2 ^ retries) * 10; 
+		    retries++;
+		    if(retries == 4){
+			exit(42);
+		    }
                     break;
                 default:
                     break;
-            }
-
-            //clear log at 12 
-            if(!deleted && now->tm_hour == 12){
-                system("exec rm -r log/*");
-                string file = "log/" + to_string(now->tm_mday) + to_string(now->tm_mon + 1) + to_string(now->tm_year + 1900) + ".log";
-                loguru::add_file(file.c_str(), loguru::Append, loguru::Verbosity_MAX);
-                LOG_F(WARNING, "Old logs have been removed");
-                deleted = true;
-            }
-            if(now ->tm_hour > 12 && deleted){
-                deleted = false;
             }
 
         }else{
@@ -174,7 +174,6 @@ int main(int argc, char *argv[]) {
             wait = 300;
             rcs.off();
         }
-        
         sleep(wait);
     }
 }

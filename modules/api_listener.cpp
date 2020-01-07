@@ -67,30 +67,21 @@ bool API_Listener::apiRequest(const char* url, bool auth){
 		curl_easy_setopt(curl, CURLOPT_URL, url);
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-		
+
 		struct curl_slist *headers = NULL;
-		
+
 		headers = curl_slist_append(headers, "Content-Type: application/json");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-		
-		while((res = curl_easy_perform(curl)) != CURLE_OK){
-			switch(res){
-				case CURLE_COULDNT_CONNECT:
-				case CURLE_COULDNT_RESOLVE_HOST:
-				case CURLE_COULDNT_RESOLVE_PROXY:
-					success = false;
-					break;
-				default:
-					success = false;
-					break;
-			}
-		}	
+
+		if((res = curl_easy_perform(curl)) != CURLE_OK){
+			success = false;
+		}
 		curl_easy_cleanup(curl);
 	}
 	curl_global_cleanup();
-	
+
 	if(debug)
-		cout << "-------------------------------------- \n" << response << "\n--------------------------------------- \n";
-	
+		cout << "-------------------------------------- \n" << searchUrl << "\n" << response << "\n--------------------------------------- \n";
+
 	return success;
 }
